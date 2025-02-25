@@ -4,9 +4,13 @@
 ------------
 ![The Great Drawing Room raised with the comic effect](images/studioRoomPortalGDRraisedComicEffect.jpg)
 
+![In the Studio Room, the Morning Room and Peirene Fountain Portals](images/studioRoomPortalsMRandPF.jpg)
+
 ![The Peirene Fountain with Bumb Mapping](images/studioRoomPortalPFbumpMapping.jpg)
 
 ![The Peirene Fountain with the Comic Effect applied](images/peireneFountainComicEffect.jpg)
+
+![Transitioning from Studio Room to Morning Room with Transition 1](images/transition1SRtoMR.jpg)
 
 ## How to
 ------------
