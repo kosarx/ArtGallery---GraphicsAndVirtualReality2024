@@ -1,0 +1,44 @@
+#version 330 core
+
+in vec4 vertex_position_cameraspace;
+in vec4 vertex_normal_cameraspace;
+in vec2 vertex_UV;
+
+uniform sampler2D Tex1Sampler;//
+
+out vec4 fragmentColor;
+							//PORTAL_WIDTH!
+const float offset_x = 1.0f /800.0f;
+							//PORTAL_HEIGHT!
+const float offset_y = 1.0f /1008.0f;
+
+vec2 offsets[9] = vec2[]
+(
+	vec2(-offset_x, offset_y),	vec2(0.0f, offset_y),	vec2(offset_x, offset_y),
+	vec2(-offset_x, 0.0f),		vec2(0.0f, 0.0f),		vec2(offset_x, 0.0f),
+	vec2(-offset_x, -offset_y), vec2(0.0f, -offset_y),	vec2(offset_x, -offset_y)
+);
+
+float kernel[9] = float[]
+(
+	1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f,
+	1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f,
+	1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f
+);
+
+
+void main(){
+	//vec4 color = vec4(texture(Tex1Sampler, vertex_UV).rgb, 1.0);
+	vec4 tex = vec4(texture(Tex1Sampler, vertex_UV).rgb, 1.0);
+	float avg = (tex.x + tex.y + tex.z)/3.0f;
+	vec4 color = vec4(avg, avg, avg, 1.0f);
+	fragmentColor = tex;
+
+	/*vec3 color = vec3(0.0f);
+	for (int i = 0; i<9; i++)
+		color += vec3(texture(Tex1Sampler, vertex_UV.st + offsets[i])) * kernel[i];
+	fragmentColor = vec4(color, 1.0f);*/
+	//fragmentColor = color;
+	
+
+}

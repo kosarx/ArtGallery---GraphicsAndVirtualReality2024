@@ -1,0 +1,121 @@
+#version 330 core
+
+in vec3 vertex_position_worldspace;
+in vec3 vertex_position_cameraspace;
+in vec3 vertex_normal_cameraspace;
+in vec2 vertex_UV;
+
+in mat3 TBN;
+in vec3 tangent;
+in vec3 bitangent;
+uniform mat4 V;
+
+uniform sampler2D normalSampler;
+uniform sampler2D Tex1Sampler; //ambient occlusion sampler
+uniform sampler2D roughnessSampler;
+
+#define NR_POINT_LIGHTS 3
+// Phong
+// light properties
+struct Light {
+    vec4 La;
+    vec4 Ld;
+    vec4 Ls;
+    vec3 lightPosition_worldspace;
+    float power;
+    float kc;
+    float kl;
+    float kq;
+};
+
+uniform Light lightVector[NR_POINT_LIGHTS];
+
+struct Material {
+    vec4 Ka;
+    vec4 Kd;
+    vec4 Ks;
+    vec4 Ke;
+    float Ns;
+};
+uniform Material mtl;
+
+out vec4 fragmentColor;
+
+vec4 phong(Light light, vec3 N, vec4 roughness, vec4 ambientOcclusion);
+
+void main(){
+    vec4 roughness = vec4(texture(roughnessSampler, vertex_UV).rgb, 1);
+    float ao = texture(Tex1Sampler, vertex_UV).r; //aoSampler
+
+    vec3 normalMapColor = texture(normalSampler, vertex_UV).xyz;
+    normalMapColor = normalMapColor * 2.0 - 1.0;
+    vec3 normal_to_debug = normalize(TBN * normalMapColor); // normal in tangent space
+   //vec3 normal_to_debug = normalize(TBN[0] * normalMapColor.x + TBN[1] * normalMapColor.y + TBN[2] * normalMapColor.z); // normal in tangent space
+
+    // debug, output the TBN matrix as color
+    //vec3 T = TBN[0];
+    //vec3 B = TBN[1];
+    //vec3 N = TBN[2];
+
+    // Output the vectors as colors
+    //fragmentColor = vec4(abs(T), 1.0); // Tangent as red
+    // fragmentColor = vec4(abs(B), 1.0); // Bitangent as green
+    // fragmentColor = vec4(abs(N), 1.0); // Normal as blue
+
+    vec3 normal = normalize(tangent * normalMapColor.x + bitangent * normalMapColor.y + vertex_normal_cameraspace * normalMapColor.z);
+    //fragmentColor = vec4(normal_to_debug, 1.0);
+    //return;
+    //vec3 normal = normalize(normalMapColor);
+
+    vec4 ambientOcclusion = clamp(vec4(ao),0,1);  // Assuming ao is a scalar value
+
+    //vec3 N = normalize(normal_to_debug);
+    vec3 N = normal;
+
+    vec4 result = vec4(0);
+    for(int i = 0; i< NR_POINT_LIGHTS; i++){
+	        result +=phong(lightVector[i], N, roughness, ambientOcclusion);
+     }
+
+    fragmentColor = result;
+    return ;
+}
+
+vec4 phong(Light light, vec3 N, vec4 roughness, vec4 ambientOcclusion) {
+    vec4 _Ks = mtl.Ks;
+    vec4 _Kd = mtl.Kd;
+    vec4 _Ka = mtl.Ka;
+    float _Ns = mtl.Ns;//more glinting?
+
+    //model the light distance effect
+    float light_distance = length(light.lightPosition_worldspace
+        - vertex_position_worldspace);
+    float distance_sq = pow(light_distance, 2);
+    float attenuation = 1.0 / (light.kc + light.kl * light_distance/light.power +  light.kq*distance_sq/light.power);
+
+    _Ka *= attenuation*normalize(ambientOcclusion);  // Scale ambient reflection by ambient occlusion
+
+    vec4 Ia = light.La * _Ka;
+    
+    // model diffuse intensity (Id)
+    vec3 L = normalize((V * vec4(light.lightPosition_worldspace, 1)).xyz
+        - vertex_position_cameraspace);
+    float cosTheta = clamp(dot(L, N), 0, 1);
+    vec4 Id = light.Ld * _Kd * cosTheta;
+
+    // Modify the specular intensity based on roughness
+
+    // model specular intensity (Is)
+    vec3 R = reflect(-L, N);//N);
+    vec3 E = normalize(- vertex_position_cameraspace);
+    float cosAlpha = clamp(dot(E, R), 0, 1);
+    float specular_factor = pow(cosAlpha, _Ns);
+
+    _Ks = 1-normalize(roughness);
+    vec4 Is = light.Ls * _Ks * specular_factor;
+    
+    
+    vec4 result = Ia + (Id + Is)*attenuation;
+
+    return result;
+}

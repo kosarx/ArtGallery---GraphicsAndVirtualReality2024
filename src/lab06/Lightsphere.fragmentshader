@@ -1,0 +1,38 @@
+#version 330
+
+// light properties
+
+in vec4 vertex_position_cameraspace;
+in vec4 vertex_normal_cameraspace;
+//in vec4 light_position_cameraspace;
+
+#define NR_POINT_LIGHTS 4
+struct Light {
+    vec4 La;
+    vec4 Ld;
+    vec4 Ls;
+    vec3 lightPosition_worldspace;
+    float power;
+    float kc;
+    float kl;
+    float kq;
+};
+uniform Light lightVector[NR_POINT_LIGHTS];
+
+uniform int useWhite;
+
+out vec4 fragment_color;
+
+vec4 phong();
+
+void main(){
+    
+    for (int i=0; i<NR_POINT_LIGHTS; i++) {
+        if (useWhite == 1){
+            fragment_color = vec4(1.0, 1.0, 1.0, 1.0);
+            }
+        else{
+            fragment_color = vec4(1.0,0.3,0.0,1.0);
+            }
+        }
+}

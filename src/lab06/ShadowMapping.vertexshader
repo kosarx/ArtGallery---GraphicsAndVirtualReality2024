@@ -1,0 +1,95 @@
+#version 330 core
+
+layout(location = 0) in vec3 vertexPosition_modelspace;
+layout(location = 1) in vec3 vertexNormal_modelspace;
+layout(location = 2) in vec2 vertexUV;
+
+
+// Phong 
+// light properties
+struct Light {
+    vec4 La;
+    vec4 Ld;
+    vec4 Ls;
+    vec3 lightPosition_worldspace;
+    float power;
+};
+uniform Light light;
+
+uniform mat4 P;
+uniform mat4 V;
+uniform mat4 M;
+uniform mat4 lightVP;
+uniform int usePortalTexture = 0;
+uniform int useNormalMaps = 0;
+uniform sampler2D Tex2Sampler; // height map
+uniform int useParallaxMapping = 0;
+uniform int raiseMesh = 0;
+
+out vec4 vertex_position_cameraspace;
+out vec4 vertex_normal_cameraspace;
+out vec4 light_position_cameraspace;
+out vec2 vertex_UV;
+out vec4 vertex_position_lightspace;
+out vec3 tangent;
+out vec3 bitangent;
+
+float LinearizeDepth(float depth, float near, float far) {
+    return (2.0 * near) / (far + near - depth * (far - near));
+}
+
+void main() {
+    
+    if (raiseMesh == 0 || usePortalTexture == 0) {
+        // Output position of the vertex
+        gl_Position =  P * V * M * vec4(vertexPosition_modelspace, 1);
+    
+        // FS
+        vertex_position_cameraspace = V * M * vec4(vertexPosition_modelspace, 1);
+        vertex_normal_cameraspace = V * M * vec4(vertexNormal_modelspace, 0);
+        light_position_cameraspace = V * vec4(light.lightPosition_worldspace, 1);
+        vertex_UV = vertexUV;
+
+        vertex_position_lightspace = lightVP * M * vec4(vertexPosition_modelspace, 1);
+    }
+    else if (usePortalTexture == 1 && raiseMesh == 1) {
+        // raise the vertex position by the height map
+        // Portal is a mirror
+        vec2 uv = vec2(1.0 - vertexUV.x, vertexUV.y);
+
+        // Sample the height map
+        float height = texture(Tex2Sampler, uv).r;
+        // linearize the depth
+        height = LinearizeDepth(height, 1, 100.0);
+        // reverse
+        height = 1.0 - height;
+
+        // scale the height
+        float height_scale = 0.4;
+        vec4 adjustedPosition = vec4(vertexPosition_modelspace + height_scale * height * normalize(vertexNormal_modelspace), 1);
+
+        gl_Position = P * V * M * adjustedPosition;
+
+        vertex_position_cameraspace = V * M * adjustedPosition;
+        vertex_normal_cameraspace = V * M * vec4(vertexNormal_modelspace, 0);
+        light_position_cameraspace = V * vec4(light.lightPosition_worldspace, 1);
+        vertex_UV = vertexUV;
+
+        vertex_position_lightspace = lightVP * M * adjustedPosition;
+    }
+
+    if (useNormalMaps == 1 || useParallaxMapping == 1) {
+        //for normal mapping
+        vec3 T = normalize(vec3(M * vec4(1.0,0.0,0.0,0.0))); 
+        vec3 B = normalize(vec3(M * vec4(0.0,1.0,0.0,0.0)));
+        
+        vec3 N = normalize(mat3(transpose(inverse(M))) * vertexNormal_modelspace);
+
+        T = normalize(T - dot(T,N)*N);
+        B = normalize(B - dot(B,N)*N - dot(B, T) * T);
+
+        tangent = normalize(mat3(V)*T);
+        bitangent = normalize(mat3(V)*B); //*/
+    }
+}
+

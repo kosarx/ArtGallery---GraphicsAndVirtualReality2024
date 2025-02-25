@@ -1,0 +1,679 @@
+#version 330
+
+in vec2 uv;
+uniform sampler2D textureSampler;
+
+uniform int doDepth;
+
+uniform float width; // consider textureSize?
+uniform float height;
+//==== KUWAHARA FILTER
+uniform int kuwa;
+//==== POINTILISM
+uniform int pointilism;
+//==== COMIC BOOK EFFECT
+uniform int comic;
+uniform int halftoneOption = 4;
+// Colour options for mixing
+const vec3 COL1 = vec3(0.12, 0.12, 0.8);
+const vec3 COL2 = vec3(0.64, 0.8, 0.12);
+
+// Edge smoothing
+const float SMOOTHING = 12.0;
+
+const vec3 GREY_WEIGHTS = vec3(0.299f, 0.587f, 0.114f);
+//==== CRT EFFECT
+uniform int crt;
+uniform float time;
+
+
+//========= KERNELLING ==================
+float offset_x = 1.0f / width;
+float offset_y = 1.0f / height;
+vec2 offsets[9] = vec2[](
+    vec2(-offset_x, offset_y), vec2(0.0f, offset_y), vec2(offset_x, offset_y),
+    vec2(-offset_x, 0.0f), vec2(0.0f, 0.0f), vec2(offset_x, 0.0f),
+    vec2(-offset_x, -offset_y), vec2(0.0f, -offset_y), vec2(offset_x, -offset_y)
+);
+
+float embossKernel[9] = float[](
+    -2.0, -1.0,  0.0,
+    -1.0,  1.0,  1.0,
+     0.0,  1.0,  2.0
+);
+float laplacianKernel[9] = float[](
+     0.0,  1.0,  0.0,
+     1.0, -4.0,  1.0,
+     0.0,  1.0,  0.0
+);
+//=====================================
+
+out vec4 frag_colour;
+
+//===================================== MISCELLANEOUS ================================
+vec4 applyHalftone(int option); // function decleration
+
+float rand(float start, float end) {
+	return start + (end - start) * fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void blur(){
+	vec2 uv = uv;
+	vec2 src_size = vec2(width, height);
+	float n = 0.0;
+	vec3 m = vec3(0.0);
+	vec3 s = vec3(0.0);
+
+	for (int j = -5; j <= 5; ++j)  {
+		for (int i = -5; i <= 5; ++i)  {
+			vec3 c = texture(textureSampler, uv + vec2(i,j) / src_size).rgb;
+			m += c;
+			s += c * c;
+			n++;
+		}
+	}
+
+	m /= n;
+	s = abs(s / n - m * m);
+
+	frag_colour = vec4(m, 1.0);
+}
+
+void applyPosterization(){
+  float gamma = 1.5;//0.6;
+  float numColors = 8.0;
+
+  vec3 c = texture(textureSampler, uv).rgb;
+  c = pow(c, vec3(gamma, gamma, gamma));
+  c = c * numColors;
+  c = floor(c);
+  c = c / numColors;
+  c = pow(c, vec3(1.0/gamma));
+  frag_colour = vec4(c, 1.0);
+}
+
+void applyKernel(float kernel[9]) {
+    vec3 texColor = texture(textureSampler, uv).rgb;
+    vec3 result = vec3(0.0);
+
+    for (int i = 0; i < 9; i++) {
+        vec3 sample = texture(textureSampler, uv + offsets[i]).rgb;
+        result += sample * kernel[i];
+    }
+
+    frag_colour = vec4(result, 1.0);
+}
+
+void applyPixelizationEffect() {
+    vec2 uv = uv;
+  
+    //vec3 tc = vec3(1.0, 0.0, 0.0);
+    float rt_w = width;
+    float rt_h = height;
+
+    float pixel_w = 10.0;
+    float pixel_h = 10.0;
+    
+    float dx = pixel_w*(1./rt_w);
+    float dy = pixel_h*(1./rt_h);
+    
+    vec2 coord = vec2(dx*floor(uv.x/dx), dy*floor(uv.y/dy));
+    
+    vec3 tc = texture(textureSampler, coord).rgb;
+    
+    frag_colour = vec4(tc, 1.0);
+}
+
+vec4 applyCheapDistortion(){
+    vec2 uv = uv;
+    vec4 frag_colour;
+
+    // Get texture dimensions using textureSize
+    vec2 textureSize = vec2(textureSize(textureSampler, 0));
+    float rt_w = textureSize.x;
+    float rt_h = textureSize.y;
+
+    // Vary pixel size based on UV coordinates
+    float pixel_w = 20.0 + 5.0 * sin(uv.x * 10.0);
+    float pixel_h = 20.0 + 5.0 * cos(uv.y * 10.0);
+    
+    float dx = pixel_w * (1.0 / rt_w);
+    float dy = pixel_h * (1.0 / rt_h);
+    
+    vec2 coord = vec2(dx * floor(uv.x / dx), dy * floor(uv.y / dy));
+    
+    vec3 tc = texture(textureSampler, coord).rgb;
+    
+    // Add a tint to the color
+    //vec3 tint = vec3(0.8, 0.6, 1.0);
+    //vec3 tintedColor = tc * tint;
+    
+    //frag_colour = vec4(tintedColor, 1.0);
+    frag_colour = vec4(tc, 1.0);
+    return frag_colour;
+}
+
+vec4 applyChromaticAberration(vec2 uv, float aberrationAmount) {
+    // Sample the texture at slightly offset UV coordinates for each color channel
+    vec2 redUV = uv + vec2(aberrationAmount, 0.0);
+    vec2 greenUV = uv;
+    vec2 blueUV = uv - vec2(aberrationAmount, 0.0);
+
+    // Sample the texture for each color channel
+    vec3 red = texture(textureSampler, redUV).rgb;
+    vec3 green = texture(textureSampler, greenUV).rgb;
+    vec3 blue = texture(textureSampler, blueUV).rgb;
+
+    // Combine the color channels
+    vec3 color = vec3(red.r, green.g, blue.b);
+
+    return vec4(color, 1.0);
+}
+
+void applyWaveyEyesEffect() {
+    vec2 resolution = vec2(width, height);
+    // aspect ratio is the ratio of the width to the height of the screen 
+	vec2 aspectRatio = resolution.x > resolution.y ? vec2(resolution.x / resolution.y, 1.0) : vec2(1.0, resolution.y / resolution.x); 
+	vec2 screenUV = uv * aspectRatio;
+    // Converting the screen UV to a range of -1 to 1
+	vec2 screenPos = screenUV * 2.0 - 1.0;
+    // Adding distortion to the screen position
+	vec2 distortion = vec2(0.0, 0.0);
+	distortion.x = sin(screenPos.y * 10.0) * 0.1;
+	distortion.y = sin(screenPos.x * 10.0) * 0.1;
+	screenPos += distortion;
+    // Converting the screen position back to UV coordinates
+	vec2 texCoord = (screenPos * 0.5 + 0.5) / aspectRatio;
+	vec4 color = texture(textureSampler, texCoord);
+	frag_colour = color;
+}
+
+//===================================== KUWAHARA =====================================
+void applyKuwaharaFiltering() {
+    /*
+    const int radius = 12;
+    vec2 uv = uv;
+    vec2 src_size = vec2(width, height);
+    float n = float((radius + 1) * (radius + 1));
+    
+
+    vec3 m[4];
+    vec3 s[4];
+    for (int k = 0; k < 4; ++k) {
+        m[k] = vec3(0.0);
+        s[k] = vec3(0.0);
+    }
+
+    for (int j = -radius; j <= 0; ++j)  {
+        for (int i = -radius; i <= 0; ++i)  {
+            vec3 c = texture(textureSampler, uv + vec2(i,j) / src_size).rgb;
+            m[0] += c;
+            s[0] += c * c;
+        }
+    }
+
+    for (int j = -radius; j <= 0; ++j)  {
+        for (int i = 0; i <= radius; ++i)  {
+            vec3 c = texture(textureSampler, uv + vec2(i,j) / src_size).rgb;
+            m[1] += c;
+            s[1] += c * c;
+        }
+    }
+
+    for (int j = 0; j <= radius; ++j)  {
+        for (int i = 0; i <= radius; ++i)  {
+            vec3 c = texture(textureSampler, uv + vec2(i,j) / src_size).rgb;
+            m[2] += c;
+            s[2] += c * c;
+        }
+    }
+
+    for (int j = 0; j <= radius; ++j)  {
+        for (int i = -radius; i <= 0; ++i)  {
+            vec3 c = texture(textureSampler, uv + vec2(i,j) / src_size).rgb;
+            m[3] += c;
+            s[3] += c * c;
+        }
+    }
+
+
+    float min_sigma2 = 1e+2;
+    for (int k = 0; k < 4; ++k) {
+        m[k] /= n;
+        s[k] = abs(s[k] / n - m[k] * m[k]);
+
+        float sigma2 = s[k].r + s[k].g + s[k].b;
+        if (sigma2 < min_sigma2) {
+            min_sigma2 = sigma2;
+            frag_colour = vec4(m[k], 1.0);
+        }
+    }
+    */
+    // Optimized version?
+    const int radius = 12;
+    vec2 uv = uv;
+    vec2 src_size = vec2(width, height);
+    float inv_n = 1.0 / float((radius + 1) * (radius + 1));
+
+    vec3 m[4] = vec3[](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
+    vec3 s[4] = vec3[](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
+
+    for (int j = -radius; j <= radius; ++j) {
+        for (int i = -radius; i <= radius; ++i) {
+            vec2 offset = vec2(i, j) / src_size;
+            vec3 c = texture(textureSampler, uv + offset).rgb;
+
+            if (i <= 0 && j <= 0) {
+                m[0] += c;
+                s[0] += c * c;
+            }
+            if (i >= 0 && j <= 0) {
+                m[1] += c;
+                s[1] += c * c;
+            }
+            if (i >= 0 && j >= 0) {
+                m[2] += c;
+                s[2] += c * c;
+            }
+            if (i <= 0 && j >= 0) {
+                m[3] += c;
+                s[3] += c * c;
+            }
+        }
+    }
+
+    float min_sigma2 = 1e+2;
+    for (int k = 0; k < 4; ++k) {
+        m[k] *= inv_n;
+        s[k] = abs(s[k] * inv_n - m[k] * m[k]);
+
+        float sigma2 = s[k].r + s[k].g + s[k].b;
+        if (sigma2 < min_sigma2) {
+            min_sigma2 = sigma2;
+            frag_colour = vec4(m[k], 1.0);
+        }
+    }
+}
+//===================================== POINTILISM ====================================
+void applyPointilismEffect() {
+    vec3 originalColor = texture(textureSampler, uv).rgb;
+    // if we've ended up in a dot, make the fragment black
+    if (originalColor == vec3(0.0, 0.0, 0.0)) {
+		frag_colour = vec4(0.0, 0.0, 0.0, 1.0);
+		return;
+	}
+    // else, ...
+    //luminance = 0.299 * red + 0.587 * green + 0.114 * blue
+    float brightness = 0.299 * originalColor.r + 0.587 * originalColor.g + 0.114 * originalColor.b;
+    vec3 fadedColor = originalColor;
+    if (brightness > 0.1) {
+		fadedColor = vec3(1.0, 1.0, 1.0);
+	}   
+
+    // apply the halftone effect
+    vec4 halftoneColor = applyHalftone(5);
+
+    // mix the halftone effect with the faded out image
+    frag_colour = vec4(mix(fadedColor, halftoneColor.rgb, 0.08), 1.0);
+        
+}
+
+//===================================== COMIC BOOK EFFECT ============================
+vec4 applyHarshEdging(){
+	vec2 uv = uv;
+	vec2 src_size = vec2(width, height);
+	float n = 0.0;
+	vec3 m = vec3(0.0);
+	vec3 s = vec3(0.0);
+
+	for (int j = -5; j <= 5; ++j)  {
+		for (int i = -5; i <= 5; ++i)  {
+			vec3 c = texture(textureSampler, uv + vec2(i,j) / src_size).rgb;
+			m += c;
+			s += c * c;
+			n++;
+		}
+	}
+
+	m /= n;
+	s = abs(s / n - m * m);
+
+	float sigma = s.r + s.g + s.b;
+    
+    vec4 color;
+	if (sigma > 0.04) {
+		color = vec4(0.0, 0.0, 0.0, 1.0);
+	} else {
+		color = vec4(1.0, 1.0, 1.0, 0.0);
+	}
+    return color;
+}
+
+vec4 applySketchEffect() {
+    const vec3 W = vec3(0.2126, 0.7152, 0.0722); // Luminance
+
+    vec2 textureCoordinate = uv;
+
+    vec3 textureColor = texture(textureSampler, textureCoordinate).rgb;
+
+    vec2 stp0 = vec2(1.0 / width, 0.0);
+    vec2 st0p = vec2(0.0, 1.0 / height);
+    vec2 stpp = vec2(1.0 / width, 1.0 / height);
+    vec2 stpm = vec2(1.0 / width, -1.0 / height);
+
+    float i00   = dot( textureColor, W);
+    float im1m1 = dot( texture(textureSampler, textureCoordinate - stpp).rgb, W);
+    float ip1p1 = dot( texture(textureSampler, textureCoordinate + stpp).rgb, W);
+    float im1p1 = dot( texture(textureSampler, textureCoordinate - stpm).rgb, W);
+    float ip1m1 = dot( texture(textureSampler, textureCoordinate + stpm).rgb, W);
+    float im10 = dot( texture(textureSampler, textureCoordinate - stp0).rgb, W);
+    float ip10 = dot( texture(textureSampler, textureCoordinate + stp0).rgb, W);
+    float i0m1 = dot( texture(textureSampler, textureCoordinate - st0p).rgb, W);
+    float i0p1 = dot( texture(textureSampler, textureCoordinate + st0p).rgb, W);
+    float h = -im1p1 - 2.0 * i0p1 - ip1p1 + im1m1 + 2.0 * i0m1 + ip1m1; // -1 0 1 horizontal gradient of Sobel filter
+    float v = -im1m1 - 2.0 * im10 - im1p1 + ip1m1 + 2.0 * ip10 + ip1p1; // -1 0 1 vertical gradient of Sobel filter
+
+    // Increase intensity of edges
+    float factor = 5.0f;
+    h = h * factor;
+    v = v * factor;
+
+    float mag = 1.0 - length(vec2(h, v));
+    vec3 target = vec3(mag);
+
+    vec4 color = vec4(mix(textureColor, target, 0.5), 1.0);
+    return color;
+}
+
+
+float calculateCircleDistance(vec2 pos, float radius) {
+    return length(pos) - radius;
+}
+float overlay(float a, float b) {
+	if(a < 0.5f) return 2.0f * a * b;
+	return 1.0f - 2.0f * (1.0f - a) * (1.0f - b);
+}
+
+vec3 makeOverlay(vec3 a, vec3 b) {
+	float red = overlay(a.r, b.r);
+	float green = overlay(a.g, b.g);
+	float blue = overlay(a.b, b.b);
+	return vec3(red, green, blue);
+}
+
+vec3 makeScreenBlend(vec3 a, vec3 b) {
+	return 1.0f - (1.0f - a) * (1.0f - b);
+}
+
+vec4 applyHalftone(int option) {
+    vec2 resolution = vec2(width, height);
+    
+    // aspect ratio
+    float w = 1.0/ min(resolution.x, resolution.y);
+    vec2 aspectRatio = resolution * w;
+    
+    // texture coordinates -- uv from 0 to 1 and new uv
+    vec2 halftone_uv = uv * aspectRatio; // fix the texture coordinates so that they aren't elliptical in shape
+
+    // Circle total
+    float total = min(resolution.x, resolution.y)/ 4.0;
+    vec2 pos = fract(halftone_uv * total);
+    pos -= 0.5;
+
+    // Greyscale
+    // current pixel colour
+    vec4 pixel = texture(textureSampler, uv);
+
+    // convert to grayscale
+    float greyResult = dot(pixel.rgb, GREY_WEIGHTS);
+
+    // Circle distance 
+    // use the inverse of the grayscale brightness to define the radius of each circle
+    float radius = 1.0 - greyResult;
+    float c = calculateCircleDistance(pos, radius);
+
+    // Smoothing  
+    float s = SMOOTHING * w;
+    c = 1.0 - smoothstep(s, -s, c);
+
+    vec4 color;
+
+    // Pixel alpha
+    color.a = pixel.a;
+    
+
+    switch(option){
+        case 0:
+			// Multiply
+            color.rgb = pixel.rgb * c;
+			break;
+		case 1:
+			// Black and white multiply
+            color.rgb = vec3(greyResult * c);
+			break;
+		case 2:
+            // Overlay
+            color.rgb = makeOverlay(pixel.rgb, vec3(c));
+			break;
+		case 3:
+            // Black and white overlay
+            color.rgb = makeOverlay(vec3(greyResult), vec3(c));
+			break;
+        case 4:
+            // Screen blend
+            color.rgb = makeScreenBlend(pixel.rgb, vec3(c));
+            break;
+        case 5:
+            // Black and white screen blend
+            color.rgb = makeScreenBlend(vec3(greyResult), vec3(c));
+            break;
+        case 6:
+            // Circles
+            color.rgb = vec3(c);
+            break;
+        case 7:
+            // Mix
+            color.rgb = mix(COL1, COL2, c);
+            break;
+		default:
+			// Default behavior
+			color.rgb; // do nothing
+			break;
+	}
+    return color;
+}
+
+vec3 adjustContrast(vec3 color, float contrast) {
+    // Adjust contrast by shifting the color towards or away from 0.5
+    return ((color - 0.5) * max(contrast, 0.0)) + 0.5;
+}
+
+vec3 boostSaturation(vec3 color, float saturation) {
+    // boost saturation by mixing the grey version of the color with the original color
+    float grey = dot(color, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(grey), color, saturation);
+}
+
+void applyComicBookEffect() {
+    //applyKernel(laplacianKernel);
+    //int option = 4;
+    vec4 halfToneResult = applyHalftone(halftoneOption);
+    vec4 sketchResult = applySketchEffect();
+    vec4 harshEdgingResult = applyHarshEdging();
+    
+    // mixing the results
+    vec4 halfToneAndSketch= mix(halfToneResult, sketchResult, 0.5);
+    if (harshEdgingResult.a > 0.0) {
+		halfToneAndSketch =  mix(halfToneAndSketch, harshEdgingResult, 0.6);
+	}
+
+    // Adjust contrast and boost saturation
+    float contrast = 1.5f; // Adjust this value to increase/decrease contrast
+    float saturation = 1.5f; // Adjust this value to increase/decrease saturation
+    vec3 adjustedColor = adjustContrast(halfToneAndSketch.rgb, contrast);
+    adjustedColor = boostSaturation(adjustedColor, saturation);
+    
+    frag_colour = vec4(adjustedColor, halfToneAndSketch.a);
+}
+
+//================================== CRT EFFECT ==============================
+vec2 curveRemapUV(vec2 uv) {    
+    // as we near the edge of our screen apply greater distortion using a sinusoid.
+    vec2 curvature = vec2(3.0, 3.0);
+
+    uv = uv * 2.0 - 1.0;
+	vec2 offset = abs(uv.yx) / vec2(curvature.x, curvature.y);
+	uv = uv + uv * offset * offset;
+	uv = uv * 0.5 + 0.5;
+    return uv;
+}
+
+vec4 vignetteIntensity(vec2 uv, vec2 resolution, float opacity, float roundness) {
+    float intensity = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
+    return vec4(vec3(clamp(pow((resolution.x / roundness) * intensity, opacity), 0.0, 1.0)), 1.0);
+}
+
+#define PI 3.14159265359
+vec4 scanLineIntensity(float uv, float resolution, float opacity) {
+    float intensity = sin(uv * resolution * PI * 2.0);
+    intensity = ((0.5 * intensity) + 0.5) * 0.9 + 0.1;
+    return vec4(vec3(pow(intensity, opacity)), 1.0);
+}
+
+// Horizontal lines effect
+vec4 horizontal_lines(vec2 uv, float time) {
+    if (uv.y < cos(time * 3.0) + 0.05 && uv.y > cos(time * 3.0) && fract(time * 0.4) > -0.01 && uv.x < cos(time * 3.0) + 1.0 && uv.x > cos(time * 3.0) - 1.0) {
+        vec2 distort_uv = uv + vec2(0.0, sin(time * 3.0) * 2.0);
+        return texture(textureSampler, distort_uv);
+    }
+    return texture(textureSampler, uv);
+}
+
+// Vertical lines effect
+vec4 vertical_lines(vec2 uv, float time) {
+    if (uv.x < cos(time * 2.0) + 0.04 && uv.x > cos(time * 2.0) && fract(time * 0.05) > 0.5) {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+    return texture(textureSampler, uv);
+}
+
+vec4 applyFlickeringEffect() {
+    // time-based condition to control the effect's appearance
+    float interval = mod(time, 5.0); // Change 5.0 to adjust the interval duration
+
+    // Randomized noise based on UV coordinates and time
+    float noise = fract(sin(dot(uv.xy * time, vec2(12.9898, 78.233))) * 43758.5453);
+
+    // small shifts in brightness to simulate CRT scanline flicker
+    float brightnessShift = 0.95 + 0.1 * noise;
+    
+    // Chromatic flicker to simulate slight color shifts
+    vec3 colorShift = vec3(
+        1.0 + 0.02 * sin(time * 10.0 + noise * 100.0),
+        1.0 + 0.02 * cos(time * 10.0 + noise * 100.0),
+        1.0 + 0.02 * sin(time * 10.0 + noise * 100.0)
+    );
+
+    // Apply horizontal and vertical lines with additional noise
+    vec4 lineEffect;
+    if (interval < 2.5) { // Effect is active for half of the interval
+        if (noise < 0.5) {
+            lineEffect = horizontal_lines(uv, time);
+        } else {
+            lineEffect = vertical_lines(uv, time);
+        }
+    } else {
+        // Return the original texture when the effect is inactive, with added noise flicker
+        lineEffect = texture(textureSampler, uv);
+    }
+
+    // Apply the brightness and color shifts
+    vec4 flickeringColor = lineEffect * vec4(colorShift * brightnessShift, 1.0);
+
+    return flickeringColor;
+}
+
+void applyCRTEffect() {
+    vec2 remappedUV = curveRemapUV(vec2(uv.x, uv.y));
+    // no need to do anything if the UV is out of bounds
+    if (remappedUV.x < 0.0 || remappedUV.y < 0.0 || remappedUV.x > 1.0 || remappedUV.y > 1.0){
+        frag_colour = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    } 
+    vec4 baseColor = texture(textureSampler, remappedUV);
+
+    vec2 screenResolution = vec2(width, height);
+    float vignetteOpacity = 1.0; // for how much the vignette should be visible
+    float vignetteRoundness = 2.0; 
+
+    baseColor *= vignetteIntensity(remappedUV, screenResolution, vignetteOpacity, vignetteRoundness);
+
+    vec2 scanLineOpacity = vec2(1, 1);
+    baseColor *= scanLineIntensity(remappedUV.x, screenResolution.y, scanLineOpacity.x);
+    baseColor *= scanLineIntensity(remappedUV.y, screenResolution.x, scanLineOpacity.y);
+
+    // boost the colors after all the darkening effects
+    float brightness = 4.0f;
+    baseColor *= vec4(vec3(brightness), 1.0);
+
+    // get the input from the distortion
+    vec4 distortedColor = applyCheapDistortion();
+    // get the chromatic aberration 
+    float aberrationAmount = 0.01;
+    vec4 chromaticAberration = applyChromaticAberration(remappedUV, aberrationAmount);
+    // get the screen flickering
+    vec4 flickeringColor = applyFlickeringEffect();
+
+    // mix the chromatic aberration with the distorted color
+    distortedColor = mix(distortedColor, chromaticAberration, 0.3);
+    // mix the flickering color with the distorted color
+    distortedColor = mix(distortedColor, flickeringColor, 0.2);
+    vec4 finalColor = mix(baseColor, distortedColor, 0.7);
+    
+    frag_colour = finalColor;
+	
+}
+
+void main (void) {
+    if (kuwa == 1) {
+        applyKuwaharaFiltering();
+        return;
+    }
+
+    if (pointilism == 1) {
+        applyPointilismEffect();
+        return;
+    }
+
+    if (comic == 1) {
+        applyComicBookEffect();
+        return;
+    }
+
+    if (crt == 1){
+        applyCRTEffect();
+        //frag_colour = applyFlickeringEffect();
+        return;
+        
+    }
+
+    if (doDepth == 1) {
+
+        float depth = texture(textureSampler, uv).r;
+        //frag_colour = vec4(depth, depth, depth, 1.0);
+
+        //* */
+        float z = depth* 2.0 - 1.0; // back to NDC
+        float near = 1;
+        float far = 100.0;
+        float linearDepth = (2.0 * near * far) / (far + near - z * (far - near));
+        linearDepth = linearDepth / far; // divide by far to normalize the depth value
+        frag_colour = vec4(linearDepth, linearDepth, linearDepth, 1.0); 
+        // */
+
+
+		return;
+	}
+    // Default case
+    frag_colour = texture(textureSampler, uv);
+}

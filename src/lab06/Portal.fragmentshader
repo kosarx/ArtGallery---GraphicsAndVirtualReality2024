@@ -1,0 +1,30 @@
+#version 330
+
+//in vec4 vertex_position_cameraspace;
+//in vec4 vertex_normal_cameraspace;
+in vec2 uv;
+in vec3 vertex_normal_cameraspace;
+in vec3 tangent;
+in vec3 bitangent;
+
+uniform sampler2D Tex1Sampler;
+
+out vec4 frag_colour;
+
+
+void main () {
+	
+	// output the normal map in tangent space
+
+	vec3 normal = texture(Tex1Sampler, uv).xyz * 2.0 - 1.0;
+	normal = normalize(normal);
+
+	//vec3 normal_tangent = normalize(tangent * normal.x + bitangent * normal.y + vertex_normal_cameraspace * normal.z);
+	mat3 TBN = mat3(tangent, bitangent, vertex_normal_cameraspace);
+	vec3 normal_tangent = normalize(TBN * normal);
+
+	frag_colour = vec4(normal_tangent * 0.5 + 0.5, 1.0);
+	// save the normal map with the correct, corrsponding xyz components
+						//normal,         // bitangent,       // tangent
+	//frag_colour = vec4(normal_tangent.z, normal_tangent.y, normal_tangent.x, 1.0);
+}

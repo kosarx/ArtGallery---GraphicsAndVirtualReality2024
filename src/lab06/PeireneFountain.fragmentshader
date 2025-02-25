@@ -1,0 +1,33 @@
+#version 330 core
+
+in vec4 vertex_position_cameraspace;
+in vec4 vertex_normal_cameraspace;
+in vec2 vertex_UV;
+
+uniform sampler2D Tex1Sampler;
+
+out vec4 fragmentColor;
+
+void main(){
+	//vec4 brushy_brush= vec4(texture(Tex2Sampler, vertex_UV).rgb, 0.5);
+	vec4 text= texture(Tex1Sampler, vertex_UV);
+	
+	// Calculate brushstroke direction vector based on brush position and angle
+	/*
+	vec2 brushDirection = vec2(cos(brushAngle), sin(brushAngle));
+  // Check if pixel is within brushstroke radius based on distance from brush position
+	float distance = length(vertex_UV - brushPosition);
+	vec4 color = text;
+	if (distance < brushRadius) {
+		// Sample noise texture based on distance and brush direction
+		float noiseValue = texture(Tex2Sampler, distance * brushDirection).r;
+
+		// Apply noise value to color to create brushstroke effect
+		color = mix(text, vec4(1.0), noiseValue);
+		}*/
+	
+	vec4 newTexture = texture(Tex1Sampler, vertex_UV); // Sample the texture
+	vec4 color = vec4(newTexture.r, newTexture.g, newTexture.b, 1.0); // Set the color
+	
+	fragmentColor = color;
+}

@@ -1,0 +1,261 @@
+#version 330
+
+in vec2 uv;
+
+uniform sampler2D Tex1Sampler; // the texture of the room we're in
+uniform sampler2D Tex2Sampler; // the texture of the room we're transitioning to
+
+uniform float dt; // the time since we started the transition , dt = last_check_time - start_time
+uniform float transitionDuration; // total time for the transition
+uniform int transitionSelection; // the transition we want to use, ranges from 0 (no transition) to 7 (circular mask transition)
+
+out vec4 fragColor;
+
+vec4 crossfade(vec2 uv, float progress);
+vec4 wipeTransition(vec2 uv, float progress);
+vec4 radialWipeTransition(vec2 uv, float progress);
+vec4 pixelateDissolve(vec2 uv, float progress);
+vec4 slideTransition(vec2 uv, float progress);
+vec4 zoomBlurTransition(vec2 uv, float progress);
+vec4 circularMaskTransition(vec2 uv, float progress);
+vec4 waterDropTransition(vec2 p, float progress, float amplitude, float speed);
+vec4 intricateCrossfade(vec2 uv, float progress, float amplitude, float speed);
+vec4 glitchMemories(vec2 p, float progress);
+
+vec4 getColorFromTexture(sampler2D tex, vec2 uv, int effect) {
+	// use the effect var to apply post-processing
+    vec4 color;
+    color = texture(tex, uv);
+    return color;
+
+}
+
+void main()
+{
+    if (transitionSelection == 0) {
+		fragColor = texture(Tex1Sampler, uv);
+	} else {
+		float progress = dt / transitionDuration;
+		if (progress >= 1.0) {
+			fragColor = texture(Tex2Sampler, uv);
+		} else {
+			switch (transitionSelection) {
+				case 1:
+					//fragColor = crossfade(uv, progress);
+                    fragColor = intricateCrossfade(uv, progress, 0.1, 0.1);
+					break;
+				case 2:
+					fragColor = wipeTransition(uv, progress);
+					break;
+				case 3:
+					//fragColor = radialWipeTransition(uv, progress);
+                    fragColor = waterDropTransition(uv, progress, 30.0, 20.0);
+					break;
+				case 4:
+					fragColor = pixelateDissolve(uv, progress);
+					break;
+				case 5:
+					//fragColor = slideTransition(uv, progress);
+                    fragColor = glitchMemories(uv, progress);
+					break;
+				case 6:
+					fragColor = zoomBlurTransition(uv, progress);
+					break;
+				case 7:
+					fragColor = circularMaskTransition(uv, progress);
+					break;
+				default:
+					fragColor = texture(Tex1Sampler, uv);
+					break;
+			}
+		}
+	}
+	
+}
+
+// Basic crossfade transition
+vec4 crossfade(vec2 uv, float progress) {
+    vec4 tex1 = texture(Tex1Sampler, uv);
+    vec4 tex2 = texture(Tex2Sampler, uv);
+    return mix(tex1, tex2, progress);
+}
+
+// Wipe transition (horizontal)
+vec4 wipeTransition(vec2 uv, float progress) {
+    vec4 tex1 = texture(Tex1Sampler, uv);
+    vec4 tex2 = texture(Tex2Sampler, uv);
+    float mask = step(progress, uv.x);
+    return mix(tex2, tex1, mask); 
+}
+
+// Radial wipe transition
+vec4 radialWipeTransition(vec2 uv, float progress) {
+    vec2 centeredUV = uv - vec2(0.5, 0.5);
+    float dist = length(centeredUV);
+    float mask = step(progress, dist * 1.0);
+    vec4 tex1 = texture(Tex1Sampler, uv);
+    vec4 tex2 = texture(Tex2Sampler, uv);
+    return mix(tex2, tex1, mask);
+}
+
+// Pixelate dissolve transition
+vec4 pixelateDissolve(vec2 uv, float progress) {
+    float pixelSize = mix(100.0, 1.0, progress);
+    vec2 pixelatedUV = floor(uv * pixelSize) / pixelSize;
+    vec4 tex1 = texture(Tex1Sampler, pixelatedUV);
+    vec4 tex2 = texture(Tex2Sampler, pixelatedUV);
+    return mix(tex1, tex2, progress);
+}
+
+// Slide transition (horizontal slide)
+vec4 slideTransition(vec2 uv, float progress) {
+    vec4 tex2 = texture(Tex2Sampler, uv);
+    vec2 slideUV = uv + vec2(progress, 0.0);
+    vec4 tex1Slide = texture(Tex1Sampler, slideUV);
+    return mix(tex1Slide, tex2, progress);
+}
+
+// Zoom blur transition
+vec4 zoomBlurTransition(vec2 uv, float progress) {
+    vec4 tex1 = texture(Tex1Sampler, uv);
+    vec2 center = vec2(0.5, 0.5);
+    vec2 dir = uv - center;
+    vec2 zoomUV = uv + dir * (1.0 - progress) * 0.5;
+    vec4 tex2Zoom = texture(Tex2Sampler, zoomUV);
+    return mix(tex1, tex2Zoom, progress);
+}
+
+// Circular mask transition
+vec4 circularMaskTransition(vec2 uv, float progress) {
+    vec2 centeredUV = uv - vec2(0.5, 0.5);
+    float dist = length(centeredUV);
+    float mask = smoothstep(progress - 0.05, progress + 0.05, dist);
+    vec4 tex1 = texture(Tex1Sampler, uv);
+    vec4 tex2 = texture(Tex2Sampler, uv);
+    return mix(tex2, tex1, mask);
+}
+
+// author: Pawel Plociennik
+// license: MIT
+vec4 waterDropTransition(vec2 p, float progress, float amplitude, float speed) {
+    vec2 dir = p - vec2(0.5);  // Direction from center
+    float dist = length(dir);   // Distance from the center
+
+    // If the distance is greater than progress, apply normal mix (no distortion)
+    if (dist > progress) {
+        vec4 from = texture(Tex1Sampler, p);
+        vec4 to = texture(Tex2Sampler, p);
+        return mix(from, to, progress);
+    } else {
+
+        // Apply wave-like distortion to the texture coordinates
+        vec2 offset = dir * sin(dist * amplitude - progress * speed);
+
+        vec4 from = texture(Tex1Sampler, p + offset);
+        vec4 to = texture(Tex2Sampler, p);
+        return mix(from, to, progress);
+    }
+}
+
+//====================================================================================================
+// Intricate crossfade effect by aferriss https://www.shadertoy.com/view/Ml3XR2
+// Constants
+const float PI = 3.141592653589793;
+const float MAX_SAMPLES = 20.0;
+
+// Linear easing function
+float Linear_ease(float begin, float change, float duration, float time) {
+    return change * time / duration + begin;
+}
+
+// Exponential ease in-out function
+float Exponential_easeInOut(float begin, float change, float duration, float time) {
+    if (time == 0.0) return begin;
+    if (time == duration) return begin + change;
+    time = time / (duration / 2.0);
+    if (time < 1.0) return change / 2.0 * pow(2.0, 10.0 * (time - 1.0)) + begin;
+    return change / 2.0 * (-pow(2.0, -10.0 * (time - 1.0)) + 2.0) + begin;
+}
+
+// Sinusoidal ease in-out function
+float Sinusoidal_easeInOut(float begin, float change, float duration, float time) {
+    return -change / 2.0 * (cos(PI * time / duration) - 1.0) + begin;
+}
+
+// Random function for noise (can be used to randomize effects)
+float random(vec3 scale, float seed) {
+    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
+}
+
+// Crossfade function to blend between textures
+vec3 crossFade(vec2 uv, float dissolve) {
+    return mix(texture(Tex1Sampler, uv).rgb, texture(Tex2Sampler, uv).rgb, dissolve);
+}
+
+vec4 intricateCrossfade(vec2 uv, float progress, float amplitude, float speed) {
+	vec2 texCoord = uv;
+    //float progress = dt / transitionDuration; // Transition progress normalized 0 to 1
+
+    // Compute easing-based dissolve value
+    float dissolve = Exponential_easeInOut(0.0, 1.0, 1.0, progress);
+
+    // Linear interpolation to move the center horizontally across the image
+    vec2 center = vec2(Linear_ease(0.5, 0.0, 1.0, progress), 0.5);
+
+    // Sinusoidal loop to control the strength of the blur
+    float strength = Sinusoidal_easeInOut(0.0, amplitude, 0.5, progress);
+
+    vec3 color = vec3(0.0);
+    float total = 0.0;
+    vec2 toCenter = center - texCoord;
+
+    // Randomize the lookup values to create a smoother effect
+    float offset = random(vec3(12.9898, 78.233, 151.7182), 0.0) * 0.5;
+
+    // Perform the motion blur effect by sampling multiple times
+    for (float t = 0.0; t <= MAX_SAMPLES; t++) {
+        float percent = (t + offset) / MAX_SAMPLES;
+        float weight = 1.0 * (percent - percent * percent); // Weight for each sample
+        color += crossFade(texCoord + toCenter * percent * strength, dissolve) * weight;
+        total += weight;
+    }
+
+    // Normalize the color and output the fragment color
+    return vec4(color / total, 1.0);
+}
+
+// author: Gunnar Roth
+// based on work from natewave
+// license: MIT
+vec4 glitchMemories(vec2 p, float progress) {
+    // Define a block size to apply noise to
+    vec2 block = floor(p.xy / vec2(16.0));
+    
+    // Generate noise for the UV coordinates
+    vec2 uv_noise = block / vec2(64.0);
+    uv_noise += floor(vec2(progress) * vec2(1200.0, 3500.0)) / vec2(64.0);
+    
+    // Calculate distortion based on progress
+    vec2 dist = progress > 0.0 ? (fract(uv_noise) - 0.5) * 0.3 * (1.0 - progress) : vec2(0.0);
+    
+    // Offset UVs for the red, green, and blue channels
+    vec2 redUV = p + dist * 0.2;
+    vec2 greenUV = p + dist * 0.3;
+    vec2 blueUV = p + dist * 0.5;
+
+    // Sample from the textures with the offset UVs and mix based on progress
+    vec4 fromRed = texture(Tex1Sampler, redUV);
+    vec4 toRed = texture(Tex2Sampler, redUV);
+    float red = mix(fromRed.r, toRed.r, progress);
+
+    vec4 fromGreen = texture(Tex1Sampler, greenUV);
+    vec4 toGreen = texture(Tex2Sampler, greenUV);
+    float green = mix(fromGreen.g, toGreen.g, progress);
+
+    vec4 fromBlue = texture(Tex1Sampler, blueUV);
+    vec4 toBlue = texture(Tex2Sampler, blueUV);
+    float blue = mix(fromBlue.b, toBlue.b, progress);
+
+    // Return the final RGB color with full alpha
+    return vec4(red, green, blue, 1.0);
+}

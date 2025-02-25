@@ -1,0 +1,25 @@
+#version 330
+layout(location = 0) in vec3 vertexPosition;
+layout(location = 2) in vec2 vertexUV;
+
+out vec2 uv;
+
+
+void main() {
+	uv = vertexUV;
+	gl_Position = vec4(vertexPosition, 1.0);
+
+    //for normal mapping
+    /* ///
+    vec3 T = normalize(vec3(M * vec4(1.0,0.0,0.0,0.0))); 
+    vec3 B = normalize(vec3(M * vec4(0.0,1.0,0.0,0.0)));
+    ///
+
+    vec3 N = normalize(mat3(transpose(inverse(M))) * vertexNormal_modelspace);
+
+    T = normalize(T - dot(T,N)*N);
+    B = normalize(B - dot(B,N)*N - dot(B, T) * T);
+
+    tangent = normalize(mat3(V)*T);
+    bitangent = normalize(mat3(V)*B); //*/
+}

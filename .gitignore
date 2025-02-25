@@ -1,0 +1,79 @@
+# Compiled object files and executables
+*.o
+*.obj
+*.exe
+*.out
+*.app
+*.so
+*.dylib
+*.a
+*.lib
+*.dll
+
+# Build directories
+build/
+Bin/
+bin/
+Obj/
+obj/
+out/
+x64/
+x86/
+
+# IDE/Editor specific files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln
+*.vcxproj*
+*.code-workspace
+
+# Dependency directories
+dependencies/
+external/
+vcpkg/
+conanbuildinfo.txt
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.swp
+*.swo
+*~
+*.bak
+
+# Logs and diagnostics
+*.log
+*.tlog
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+*.cmake
+Makefile
+
+# Shader cache (optional)
+*.spv
+*.glslbin
+
+
+
+
+# ignore everything in src/lab06/models
+src/lab06/models/*
+
+# ignore the images folder
+images/*
+

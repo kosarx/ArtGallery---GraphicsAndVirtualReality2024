@@ -1,0 +1,24 @@
+#version 330 core
+
+layout(location = 0) in vec3 vertexPosition_modelspace;
+layout(location = 1) in vec3 vertexNormal_modelspace;
+layout(location = 2) in vec2 vertexUV;
+
+uniform mat4 P;
+uniform mat4 V;
+uniform mat4 M;
+
+out vec4 vertex_position_cameraspace;
+out vec4 vertex_normal_cameraspace;
+out vec2 vertex_UV;
+
+void main() {
+
+    // Output position of the vertex
+    gl_Position =  P * V * M * vec4(vertexPosition_modelspace, 1);
+    
+    // FS
+    vertex_position_cameraspace = V * M * vec4(vertexPosition_modelspace, 1);
+    vertex_normal_cameraspace = V * M * vec4(vertexNormal_modelspace, 0);
+    vertex_UV = vertexUV;
+}

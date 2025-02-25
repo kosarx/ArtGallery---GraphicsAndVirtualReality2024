@@ -1,0 +1,14 @@
+#version 330 core
+
+in vec4 vertex_position_cameraspace;
+in vec4 vertex_normal_cameraspace;
+in vec2 vertex_UV;
+
+uniform sampler2D Tex1Sampler;
+
+out vec4 fragmentColor;
+
+void main(){
+	vec4 color = vec4(texture(Tex1Sampler, vertex_UV).rgb, 1.0);
+	fragmentColor = color;
+}
