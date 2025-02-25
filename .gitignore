@@ -75,5 +75,5 @@ Makefile
 src/lab06/models/*
 
 # ignore the images folder
-images/*
+# images/*
 
