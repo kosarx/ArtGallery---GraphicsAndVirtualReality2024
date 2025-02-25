@@ -2,10 +2,11 @@
 
 ## Introduction
 ------------
-![The Studio Room with Paintings - 1](images/studioRoomWithPaintings1.jpg)
+![The Great Drawing Room raised with the comic effect](images/studioRoomPortalGDRraisedComicEffect.jpg)
 
+![The Peirene Fountain with Bumb Mapping](images/studioRoomPortalPFbumpMapping.jpg)
 
-![The Studio Room with Paintings - 2](images/studioRoomWithPaintings2.jpg)
+![The Peirene Fountain with the Comic Effect applied](images/peireneFountainComicEffect.jpg)
 
 ## How to
 ------------
