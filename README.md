@@ -37,6 +37,6 @@ BACKSPACE: Print booleans status \
 SHIFT + BACKSPACE: Toggle minimap for debugging \
 LEFT/RIGHT ARROW: Change minimap texture \
 CTRL: Print Instructions Again \
-ESC: Quit \
+ESC: Quit 
 
 
