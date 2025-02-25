@@ -15,7 +15,7 @@
 
 ------------
 Program Instructions:
- WASD: Move camera
+>WASD: Move camera \
  Q&E: Move up and down
  ENTER: Toggle active Dithering
  SHIFT + ENTER: Toggle active colored Dithering or pre-dithered/original
