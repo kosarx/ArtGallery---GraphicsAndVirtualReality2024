@@ -73,6 +73,11 @@ Makefile
 
 # ignore everything in src/lab06/models
 src/lab06/models/*
+!src/lab06/models/**/*.jpg
+!src/lab06/models/**/*.dds
+!src/lab06/models/**/*.bmp
+!src/lab06/models/**/*.obj
+!src/lab06/models/**/*.mtl
 
 # ignore the images folder
 # images/*

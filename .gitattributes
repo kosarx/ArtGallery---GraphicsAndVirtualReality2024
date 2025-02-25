@@ -1,0 +1,5 @@
+src/lab06/models/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+src/lab06/models/**/*.dds filter=lfs diff=lfs merge=lfs -text
+src/lab06/models/**/*.bmp filter=lfs diff=lfs merge=lfs -text
+src/lab06/models/**/*.obj filter=lfs diff=lfs merge=lfs -text
+src/lab06/models/**/*.mtl filter=lfs diff=lfs merge=lfs -text
